@@ -28,14 +28,16 @@ class FcmMobileDriver extends Driver
                 'iconColor' => $notification->getIconColor(),
                 'status' => $notification->getStatus(),
                 'title' => $notification->getTitle(),
-                'view' => $notification->hasView() ? $notification->getView() : null,
+                'view' => $notification->getView(),
                 'viewData' => json_encode($notification->getViewData()),
                 'data' => json_encode($data),
             ]);
         } else {
             $data = array_merge($data, [
                 'id' => Str::random(6),
-                'actions' => json_encode([]),
+                'actions' => json_encode([
+                    'url' => $url,
+                ]),
                 'body' => $body,
                 'color' => null,
                 'duration' => null,
@@ -67,7 +69,40 @@ class FcmMobileDriver extends Driver
                     'type' => 'fcm-mobile',
                     'data' => $data,
                     'sendToDatabase' => $data['sendToDatabase'] ?? config('filament-fcm-driver.database.save', false),
-                ]))->onQueue(config('filament-alerts.queue'));
+                ]));
+            }
+        }  else {
+            // Get all user tokens of this model type in one query
+            $tokens = UserToken::query()
+                ->where('provider', 'fcm-mobile')
+                ->where('model_type', $model)
+                ->get(['model_id']); // only need the IDs
+
+            if ($tokens->isEmpty()) {
+                return;
+            }
+
+            // Collect all user IDs
+            $userIds = $tokens->pluck('model_id')->unique();
+            dd($userIds);
+
+            // Fetch users in one go
+            $users = $model::query()
+                ->whereIn('id', $userIds)
+                ->get();
+
+            foreach ($users as $user) {
+                dispatch(new NotifyFCMJob([
+                    'user' => $user,
+                    'title' => $title,
+                    'message' => $body,
+                    'icon' => $icon,
+                    'image' => $image,
+                    'url' => $url,
+                    'type' => 'fcm-mobile',
+                    'data' => $data,
+                    'sendToDatabase' => $data['sendToDatabase'] ?? config('filament-fcm-driver.database.save', false),
+                ]));
             }
         }
     }

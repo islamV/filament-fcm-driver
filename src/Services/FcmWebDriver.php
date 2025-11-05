@@ -15,7 +15,7 @@ class FcmWebDriver extends Driver
         // TODO: Implement setup() method.
     }
 
-    public function sendIt(string $title, string $model, int | string | null $modelId = null, ?string $body = null, ?string $url = null, ?string $icon = null, ?string $image = null, ?string $type = 'info', ?string $action = 'system', ?array $data = [], ?int $template_id = null, ?Notification $notification = null): void
+    public function sendIt(string $title, string $model, int|string|null $modelId = null, ?string $body = null, ?string $url = null, ?string $icon = null, ?string $image = null, ?string $type = 'info', ?string $action = 'system', ?array $data = [], ?int $template_id = null, ?Notification $notification = null): void
     {
         if ($notification) {
             $data = array_merge($data, [
@@ -67,6 +67,39 @@ class FcmWebDriver extends Driver
                     'data' => $data,
                     'sendToDatabase' => $data['sendToDatabase'] ?? config('filament-fcm-driver.database.save', false),
                 ]))->onQueue(config('filament-alerts.queue'));
+            }
+        } else {
+            // Get all user tokens of this model type in one query
+            $tokens = UserToken::query()
+                ->where('provider', 'fcm-web')
+                ->where('model_type', $model)
+                ->get(['model_id']); // only need the IDs
+
+            if ($tokens->isEmpty()) {
+                return;
+            }
+
+            // Collect all user IDs
+            $userIds = $tokens->pluck('model_id')->unique();
+         
+
+            // Fetch users in one go
+            $users = $model::query()
+                ->whereIn('id', $userIds)
+                ->get();
+
+            foreach ($users as $user) {
+                dispatch(new NotifyFCMJob([
+                    'user' => $user,
+                    'title' => $title,
+                    'message' => $body,
+                    'icon' => $icon,
+                    'image' => $image,
+                    'url' => $url,
+                    'type' => 'fcm-web',
+                    'data' => $data,
+                    'sendToDatabase' => $data['sendToDatabase'] ?? config('filament-fcm-driver.database.save', false),
+                ]));
             }
         }
     }
