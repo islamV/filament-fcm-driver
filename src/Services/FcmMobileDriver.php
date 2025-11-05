@@ -84,7 +84,7 @@ class FcmMobileDriver extends Driver
 
             // Collect all user IDs
             $userIds = $tokens->pluck('model_id')->unique();
-            dd($userIds);
+           
 
             // Fetch users in one go
             $users = $model::query()
