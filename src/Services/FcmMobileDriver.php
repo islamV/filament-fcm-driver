@@ -90,20 +90,22 @@ class FcmMobileDriver extends Driver
             $users = $model::query()
                 ->whereIn('id', $userIds)
                 ->get();
-
             foreach ($users as $user) {
-                dispatch(new NotifyFCMJob([
-                    'user' => $user,
-                    'title' => $title,
-                    'message' => $body,
-                    'icon' => $icon,
-                    'image' => $image,
-                    'url' => $url,
-                    'type' => 'fcm-mobile',
-                    'data' => $data,
-                    'sendToDatabase' => $data['sendToDatabase'] ?? config('filament-fcm-driver.database.save', false),
-                ]));
-            }
+    dispatch(new NotifyFCMJob([
+        'user' => $user,
+        'title' => $title,
+        'message' => $body,
+        'icon' => $icon,
+        'image' => $image,
+        'url' => $url,
+          'type' => 'fcm-mobile',
+        'data' => $data,
+        'sendToDatabase' => $data['sendToDatabase']
+            ?? config('filament-fcm-driver.database.save', false),
+    ]))
+    ->onQueue(config('filament-alerts.queue'));
+}
+
         }
     }
 }
